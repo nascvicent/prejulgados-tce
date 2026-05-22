@@ -504,6 +504,44 @@
     transition: background 0.15s;
   }
   .usuario-ativo-chip:hover { background: rgba(255,255,255,0.25); }
+  .senha-panel {
+    display: none; flex-direction: column;
+    align-items: center; gap: 12px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .senha-panel.show { display: flex; }
+  .senha-label { font-size:14px; color:rgba(255,255,255,0.8); font-family:'IBM Plex Sans',sans-serif; }
+  .senha-input {
+    font-family:'IBM Plex Mono',monospace; font-size:16px;
+    padding:10px 20px; border-radius:8px;
+    border:2px solid rgba(255,255,255,0.25);
+    background:rgba(255,255,255,0.1); color:#fff;
+    outline:none; text-align:center; letter-spacing:0.12em;
+    width:220px; transition:border-color 0.2s;
+  }
+  .senha-input:focus { border-color:rgba(255,255,255,0.7); }
+  .senha-input::placeholder { color:rgba(255,255,255,0.3); letter-spacing:0; font-size:13px; }
+  .senha-input.erro { border-color:#f87171; animation:shake 0.3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .senha-erro { font-size:12px; color:#f87171; font-family:'IBM Plex Sans',sans-serif; min-height:16px; }
+  .btn-entrar {
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+    padding:9px 28px; border-radius:6px;
+    background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.3);
+    color:#fff; cursor:pointer; letter-spacing:0.05em; transition:background 0.15s;
+  }
+  .btn-entrar:hover { background:rgba(255,255,255,0.32); }
+  .btn-voltar {
+    font-size:12px; color:rgba(255,255,255,0.5);
+    background:none; border:none; cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif; text-decoration:underline;
+  }
+  .btn-voltar:hover { color:rgba(255,255,255,0.8); }
+  .usuario-btn.selecionado {
+    background:rgba(255,255,255,0.22); border-color:rgba(255,255,255,0.6);
+    transform:translateY(-2px);
+  }
 </style>
 </head>
 <body>
@@ -511,8 +549,16 @@
 <!-- TELA DE SELEÇÃO DE USUÁRIO -->
 <div id="telaUsuario">
   <div class="tela-logo">Prejulgados TCE-PE</div>
-  <div class="tela-titulo">Quem é você?</div>
+  <div class="tela-titulo" id="telaTitle">Quem é você?</div>
   <div class="usuarios-grid" id="usuariosGrid"></div>
+  <div class="senha-panel" id="senhaPanel">
+    <div class="senha-label" id="senhaLabel">Digite sua senha</div>
+    <input class="senha-input" id="senhaInput" type="password" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter')confirmarSenha()">
+    <div class="senha-erro" id="senhaErro"></div>
+    <button class="btn-entrar" onclick="confirmarSenha()">Entrar →</button>
+    <button class="btn-voltar" onclick="voltarSelecao()">← Voltar</button>
+  </div>
 </div>
 
 <header>
@@ -1103,56 +1149,102 @@ const DADOS_EMBUTIDOS = [{"id": 65, "versao": 1, "codigo": 63, "descricao": "É 
 
 // ── Sistema de Usuários ──────────────────────────────────────────
 const USUARIOS = [
-  { id: 'rogerio',  nome: 'Rogério',  cor: '#3b82f6', letra: 'R' },
-  { id: 'bruna',    nome: 'Bruna',    cor: '#ec4899', letra: 'B' },
-  { id: 'henrique', nome: 'Henrique', cor: '#f59e0b', letra: 'H' },
+  { id: 'rogerio',  nome: 'Rogério',  cor: '#3b82f6', letra: 'R', senha: 'rogerio123' },
+  { id: 'bruna',    nome: 'Bruna',    cor: '#ec4899', letra: 'B', senha: 'bruna123'   },
+  { id: 'henrique', nome: 'Henrique', cor: '#f59e0b', letra: 'H', senha: 'henrique123'},
 ];
 
 let usuarioAtual = null;
+let usuarioPendente = null; // usuário clicado aguardando senha
 
 function storageKey(base) {
   return `pj_${usuarioAtual}_${base}`;
 }
 
 function iniciarSistemaUsuarios() {
-  // Monta os botões
   const grid = document.getElementById('usuariosGrid');
   USUARIOS.forEach(u => {
     const btn = document.createElement('button');
     btn.className = 'usuario-btn';
+    btn.id = `btn_${u.id}`;
     btn.innerHTML = `
       <div class="avatar" style="background:${u.cor}20;color:${u.cor}">${u.letra}</div>
       <div class="nome">${u.nome}</div>`;
-    btn.onclick = () => selecionarUsuario(u.id);
+    btn.onclick = () => pedirSenha(u.id);
     grid.appendChild(btn);
   });
 
-  // Verifica se já tem usuário salvo
+  // Se já tinha sessão salva, pede a senha de novo para confirmar
   const salvo = localStorage.getItem('pj_usuario_ativo');
   if (salvo && USUARIOS.find(u => u.id === salvo)) {
-    selecionarUsuario(salvo, true);
+    pedirSenha(salvo);
   }
 }
 
-async function selecionarUsuario(id, silencioso) {
+function pedirSenha(id) {
+  usuarioPendente = id;
+  const u = USUARIOS.find(u => u.id === id);
+
+  // Destaca botão selecionado
+  document.querySelectorAll('.usuario-btn').forEach(b => b.classList.remove('selecionado'));
+  const btn = document.getElementById(`btn_${id}`);
+  if (btn) btn.classList.add('selecionado');
+
+  // Mostra painel de senha
+  document.getElementById('usuariosGrid').style.opacity = '0.4';
+  document.getElementById('telaTitle').textContent = `Olá, ${u.nome}!`;
+  document.getElementById('senhaLabel').textContent = `Digite sua senha para entrar`;
+  document.getElementById('senhaErro').textContent = '';
+  document.getElementById('senhaInput').value = '';
+  document.getElementById('senhaInput').classList.remove('erro');
+  document.getElementById('senhaPanel').classList.add('show');
+  setTimeout(() => document.getElementById('senhaInput').focus(), 100);
+}
+
+function voltarSelecao() {
+  usuarioPendente = null;
+  document.getElementById('usuariosGrid').style.opacity = '1';
+  document.getElementById('telaTitle').textContent = 'Quem é você?';
+  document.getElementById('senhaPanel').classList.remove('show');
+  document.querySelectorAll('.usuario-btn').forEach(b => b.classList.remove('selecionado'));
+}
+
+function confirmarSenha() {
+  const digitada = document.getElementById('senhaInput').value;
+  const u = USUARIOS.find(u => u.id === usuarioPendente);
+  if (!u) return;
+
+  if (digitada === u.senha) {
+    selecionarUsuario(u.id);
+  } else {
+    const input = document.getElementById('senhaInput');
+    const erro  = document.getElementById('senhaErro');
+    input.classList.add('erro');
+    erro.textContent = 'Senha incorreta. Tente novamente.';
+    input.value = '';
+    setTimeout(() => input.classList.remove('erro'), 400);
+    setTimeout(() => input.focus(), 100);
+  }
+}
+
+async function selecionarUsuario(id) {
   usuarioAtual = id;
+  usuarioPendente = null;
   localStorage.setItem('pj_usuario_ativo', id);
 
   const u = USUARIOS.find(u => u.id === id);
   document.getElementById('telaUsuario').style.display = 'none';
+  document.getElementById('senhaPanel').classList.remove('show');
   document.getElementById('chipUsuario').textContent = `👤 ${u.nome}`;
 
   await loadStorage();
 
-  if (!silencioso || allData.length === 0) {
-    allData = DADOS_EMBUTIDOS.map(d => ({ ...d, _desc: stripHtml(d.descricao) }));
-    renderizarTudo();
-  } else {
-    renderizarTudo();
-  }
+  allData = DADOS_EMBUTIDOS.map(d => ({ ...d, _desc: stripHtml(d.descricao) }));
+  renderizarTudo();
 }
 
 function trocarUsuario() {
+  voltarSelecao();
   document.getElementById('telaUsuario').style.display = 'flex';
 }
 
