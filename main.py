@@ -2,36 +2,41 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import sqlite3, os
+import os, psycopg2, psycopg2.extras
+from contextlib import contextmanager
 
 app = FastAPI()
-DB_PATH = os.environ.get("DB_PATH", "data/analise.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
+@contextmanager
 def get_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 def init_db():
-    conn = get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS comentarios (
-            usuario     TEXT NOT NULL,
-            codigo      TEXT NOT NULL,
-            texto       TEXT NOT NULL DEFAULT '',
-            atualizado  DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (usuario, codigo)
-        );
-        CREATE TABLE IF NOT EXISTS vinculos (
-            usuario     TEXT NOT NULL,
-            grupo_id    TEXT NOT NULL,
-            codigo      TEXT NOT NULL,
-            PRIMARY KEY (usuario, grupo_id, codigo)
-        );
-    """)
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comentarios (
+                usuario     TEXT NOT NULL,
+                codigo      TEXT NOT NULL,
+                texto       TEXT NOT NULL DEFAULT '',
+                atualizado  TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (usuario, codigo)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vinculos (
+                usuario     TEXT NOT NULL,
+                grupo_id    TEXT NOT NULL,
+                codigo      TEXT NOT NULL,
+                PRIMARY KEY (usuario, grupo_id, codigo)
+            )
+        """)
 
 init_db()
 
@@ -43,47 +48,39 @@ class VinculoPayload(BaseModel):
 
 @app.get("/api/estado/{usuario}")
 def get_estado(usuario: str):
-    conn = get_db()
-    rows_c = conn.execute(
-        "SELECT codigo, texto FROM comentarios WHERE usuario=?", (usuario,)
-    ).fetchall()
-    comentarios = {r["codigo"]: r["texto"] for r in rows_c}
-
-    rows_v = conn.execute(
-        "SELECT grupo_id, codigo FROM vinculos WHERE usuario=? ORDER BY grupo_id",
-        (usuario,)
-    ).fetchall()
-    vinculos = {}
-    for r in rows_v:
-        vinculos.setdefault(r["grupo_id"], []).append(r["codigo"])
-
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT codigo, texto FROM comentarios WHERE usuario=%s", (usuario,))
+        comentarios = {r["codigo"]: r["texto"] for r in cur.fetchall()}
+        cur.execute("SELECT grupo_id, codigo FROM vinculos WHERE usuario=%s ORDER BY grupo_id", (usuario,))
+        vinculos = {}
+        for r in cur.fetchall():
+            vinculos.setdefault(r["grupo_id"], []).append(r["codigo"])
     return {"comentarios": comentarios, "vinculos": vinculos}
 
 @app.post("/api/comentario/{usuario}/{codigo}")
 def salvar_comentario(usuario: str, codigo: str, body: Comentario):
-    conn = get_db()
-    conn.execute("""
-        INSERT INTO comentarios (usuario, codigo, texto) VALUES (?,?,?)
-        ON CONFLICT(usuario, codigo)
-        DO UPDATE SET texto=excluded.texto, atualizado=CURRENT_TIMESTAMP
-    """, (usuario, codigo, body.texto))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO comentarios (usuario, codigo, texto)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (usuario, codigo)
+            DO UPDATE SET texto=EXCLUDED.texto, atualizado=NOW()
+        """, (usuario, codigo, body.texto))
     return {"ok": True}
 
 @app.post("/api/vinculos/{usuario}")
 def salvar_vinculos(usuario: str, body: VinculoPayload):
-    conn = get_db()
-    conn.execute("DELETE FROM vinculos WHERE usuario=?", (usuario,))
-    for grupo_id, codigos in body.links.items():
-        for codigo in codigos:
-            conn.execute(
-                "INSERT INTO vinculos (usuario, grupo_id, codigo) VALUES (?,?,?)",
-                (usuario, grupo_id, codigo)
-            )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM vinculos WHERE usuario=%s", (usuario,))
+        for grupo_id, codigos in body.links.items():
+            for codigo in codigos:
+                cur.execute(
+                    "INSERT INTO vinculos (usuario, grupo_id, codigo) VALUES (%s, %s, %s)",
+                    (usuario, grupo_id, codigo)
+                )
     return {"ok": True}
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
