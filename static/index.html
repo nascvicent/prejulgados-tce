@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visualizador de Prejulgados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f2ed;
+    --surface: #ffffff;
+    --surface2: #f9f8f5;
+    --border: #e0ddd6;
+    --border-strong: #c8c4bb;
+    --text: #1a1916;
+    --text-2: #5a574f;
+    --text-3: #9a9790;
+    --accent: #1a3a2a;
+    --accent-light: #e8f0eb;
+    --accent-mid: #2d6647;
+    --tag-bg: #eef4f0;
+    --tag-text: #1a3a2a;
+    --warn: #7a4a00;
+    --warn-bg: #fef6e4;
+    --radius: 6px;
+    --radius-lg: 10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    opacity: 0.95;
+  }
+  .logo span { opacity: 0.5; margin: 0 6px; }
+  .header-badge {
+    font-size: 11px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  /* MAIN LAYOUT */
+  main { max-width: 1400px; margin: 0 auto; padding: 28px 32px 60px; }
+
+  /* UPLOAD ZONE */
+  .upload-card {
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 36px 32px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .upload-card:hover, .upload-card.drag { border-color: var(--accent-mid); background: var(--accent-light); }
+  .upload-card input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon {
+    width: 44px; height: 44px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+    background: var(--surface2);
+    font-size: 20px;
+  }
+  .upload-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .upload-sub { font-size: 13px; color: var(--text-2); margin-bottom: 18px; }
+  .btn-upload {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 20px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .upload-card:hover .btn-upload { opacity: 0.85; }
+
+  /* PASTE AREA */
+  .paste-row { display: flex; gap: 10px; margin-bottom: 28px; align-items: flex-start; }
+  textarea {
+    flex: 1;
+    height: 90px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent-mid); }
+  textarea::placeholder { color: var(--text-3); }
+  .btn-process {
+    padding: 12px 22px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    align-self: flex-end;
+  }
+  .btn-process:hover { opacity: 0.85; }
+
+  /* STATUS BAR */
+  #statusBar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    margin-bottom: 24px;
+    font-size: 13px;
+  }
+  #statusBar.show { display: flex; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #3d9e60; flex-shrink: 0; }
+  .status-dot.err { background: #c94040; }
+  .stat-chips { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--border);
+  }
+
+  /* SEARCH & FILTER */
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .search-wrap { position: relative; flex: 1; min-width: 200px; }
+  .search-wrap svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+  input[type=search] {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type=search]:focus { border-color: var(--accent-mid); }
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* SECTION TITLES */
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 10px;
+  }
+  .section-block { margin-bottom: 40px; }
+
+  /* TABLES */
+  .table-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    user-select: none;
+    cursor: pointer;
+  }
+  th:hover { color: var(--text); }
+  th .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 10px; }
+  th.sorted .sort-arrow { opacity: 1; color: var(--accent-mid); }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+
+  /* PROCESSO BADGE */
+  .proc-badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .num-badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    white-space: nowrap;
+  }
+  .area-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    white-space: nowrap;
+  }
+
+  /* DESCRIPTION CELL */
+  .desc-cell {
+    max-width: 440px;
+    min-width: 260px;
+  }
+  .desc-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.55;
+  }
+  .desc-text.expanded { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .expand-btn {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--accent-mid);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    background: none;
+    border: none;
+    padding: 0;
+    letter-spacing: 0.02em;
+  }
+  .expand-btn:hover { text-decoration: underline; }
+
+  /* group header now handled by .group-header-row in feature section */
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-3);
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.05em;
+    padding: 20px 0 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; margin-bottom: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; width: fit-content; }
+  .tab {
+    padding: 7px 18px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-2);
+    font-family: 'IBM Plex Sans', sans-serif;
+    transition: all 0.15s;
+    font-weight: 400;
+  }
+  .tab.active { background: var(--accent); color: #fff; font-weight: 500; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* EXPORT BTN */
+  .btn-export {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-2);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .btn-export:hover { border-color: var(--accent-mid); color: var(--accent); }
+
+  @media (max-width: 700px) {
+    main { padding: 16px; }
+    header { padding: 0 16px; }
+    .paste-row { flex-direction: column; }
+    .btn-process { width: 100%; }
+  }
+
+  /* LINK & COMMENT FEATURES */
+  .link-group-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    border: 1.5px solid; cursor: default; font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500; white-space: nowrap; margin: 2px 2px 0 0;
+  }
+  .link-group-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  .comment-cell { min-width: 180px; max-width: 220px; }
+  .comment-area {
+    width: 100%; min-height: 52px; resize: vertical;
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 12px;
+    padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface2);
+    color: var(--text); outline: none; transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+  .comment-area:focus { border-color: var(--accent-mid); background: var(--surface); }
+  .comment-area::placeholder { color: var(--text-3); }
+
+  .link-toolbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--surface2);
+    border-bottom: 1px solid var(--border); font-size: 12px;
+    color: var(--text-2);
+  }
+  .link-mode-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 5px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; color: var(--text-2); transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .link-mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .link-mode-btn:hover:not(.active) { border-color: var(--accent-mid); color: var(--accent); }
+
+  .selectable-row { cursor: pointer; }
+  .selectable-row.selected td { background: #d4eddf !important; outline: 2px solid var(--accent-mid); outline-offset: -2px; }
+  .selectable-row.pending td { background: #fff8e1 !important; }
+
+  .save-notice {
+    font-size: 11px; color: var(--text-3); font-family: 'IBM Plex Mono', monospace;
+    padding: 4px 10px; border-radius: 20px; background: var(--surface2);
+    border: 1px solid var(--border); transition: color 0.3s;
+  }
+  .save-notice.saved { color: var(--accent-mid); }
+
+  .btn-clear-links {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 5px 10px; border-radius: var(--radius);
+    border: 1px solid #e0c0c0; background: var(--surface);
+    cursor: pointer; color: #a03030; transition: all 0.15s;
+  }
+  .btn-clear-links:hover { background: #fdeaea; border-color: #a03030; }
+
+  .linked-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; padding: 2px 6px; border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace; font-weight: 500;
+    white-space: nowrap; margin-right: 3px; margin-bottom: 2px;
+  }
+  .group-header-row td {
+    background: var(--accent-light); border-bottom: 1px solid var(--border);
+    border-top: 2px solid var(--border-strong); padding: 7px 14px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    font-weight: 500; color: var(--accent); letter-spacing: 0.04em;
+  }
+  .group-header-row:first-child td { border-top: none; }
+  /* TELA DE SELEÇÃO DE USUÁRIO */
+  #telaUsuario {
+    position: fixed; inset: 0; background: var(--accent);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999; gap: 32px;
+  }
+  .tela-logo {
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    letter-spacing: 0.12em; color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+  }
+  .tela-titulo {
+    font-size: 22px; font-weight: 500; color: #fff;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .usuarios-grid {
+    display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+  }
+  .usuario-btn {
+    width: 120px; height: 120px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff; cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.18s; font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .usuario-btn:hover {
+    background: rgba(255,255,255,0.18);
+    border-color: rgba(255,255,255,0.5);
+    transform: translateY(-2px);
+  }
+  .usuario-btn .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 600; letter-spacing: 0;
+    color: var(--accent); font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .usuario-btn .nome {
+    font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
+  }
+  .usuario-ativo-chip {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 3px 10px; border-radius: 20px;
+    background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8);
+    cursor: pointer; border: none; letter-spacing: 0.04em;
+    transition: background 0.15s;
+  }
+  .usuario-ativo-chip:hover { background: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+
+<!-- TELA DE SELEÇÃO DE USUÁRIO -->
+<div id="telaUsuario">
+  <div class="tela-logo">Prejulgados TCE-PE</div>
+  <div class="tela-titulo">Quem é você?</div>
+  <div class="usuarios-grid" id="usuariosGrid"></div>
+</div>
+
+<header>
+  <div class="logo">PREJULGADOS <span>/</span> TCE</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button onclick="toggleJsonPanel()" id="btnAtualizarJson" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:#fff;border-radius:6px;cursor:pointer;letter-spacing:0.04em;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">⟳ Atualizar JSON</button>
+    <button onclick="exportHTML()" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:#fff;border-radius:6px;cursor:pointer;letter-spacing:0.04em;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">⬇ Exportar HTML</button>
+    <button class="usuario-ativo-chip" id="chipUsuario" onclick="trocarUsuario()"></button>
+    <span class="header-badge" id="recordCount">0 registros</span>
+  </div>
+</header>
+
+<!-- PAINEL JSON (oculto por padrão) -->
+<div id="jsonPanel" style="display:none;background:#f0ede6;border-bottom:1px solid #d0cdc6;padding:16px 32px;gap:12px;align-items:flex-start">
+  <div style="flex:1">
+    <div style="font-size:12px;font-weight:500;margin-bottom:6px;font-family:'IBM Plex Mono',monospace;color:#1a3a2a">Novo JSON de prejulgados</div>
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <textarea id="jsonInput" placeholder="Cole o JSON aqui (array de objetos)..." style="flex:1;height:100px;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 12px;border:1px solid #c8c4bb;border-radius:6px;background:#fff;color:#1a1916;resize:vertical;outline:none"></textarea>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-process" onclick="processJson()" style="white-space:nowrap">▶ Processar</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:8px 14px;border:1px solid #c8c4bb;border-radius:6px;background:#fff;white-space:nowrap;color:#5a574f">
+          <input type="file" accept=".json" id="fileInput" style="display:none" onchange="loadFile(event)">
+          📂 Arquivo .json
+        </label>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#9a9790;margin-top:6px;font-family:'IBM Plex Mono',monospace">Vínculos e comentários existentes serão preservados.</div>
+  </div>
+</div>
+
+<main>
+  <div id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusMsg"></span>
+    <div class="stat-chips" id="statChips"></div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div id="outputSection" style="display:none">
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('all',this)">Todos os Prejulgados</button>
+      <button class="tab" onclick="switchTab('grouped',this)">Mesmo Processo</button>
+    </div>
+
+    <!-- TAB 1: ALL -->
+    <div class="tab-panel active" id="tab-all">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="searchAll" placeholder="Buscar por número, descrição, área..." oninput="filterAll()">
+        </div>
+        <select id="filterArea" onchange="filterAll()">
+          <option value="">Todas as áreas</option>
+        </select>
+        <select id="filterTema" onchange="filterAll()">
+          <option value="">Todos os temas</option>
+        </select>
+        <button class="btn-export" onclick="exportCSV('all')">⬇ CSV</button>
+        <button class="btn-export" onclick="exportXLSX('all')" style="background:var(--accent-light);color:var(--accent);border-color:#b6d4c0">⬇ Excel</button>
+      </div>
+      <div class="table-container">
+        <div class="table-scroll">
+          <table id="tableAll">
+            <thead>
+              <tr>
+                <th onclick="sortTable('all','numeroProcesso')" data-col="numeroProcesso">Nº Processo <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable('all','codigo')" data-col="codigo">Prejulgado <span class="sort-arrow">↕</span></th>
+                <th>Descrição</th>
+                <th onclick="sortTable('all','areaDescricao')" data-col="areaDescricao">Área <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable('all','temaDescricao')" data-col="temaDescricao">Tema <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable('all','subtemaDescricao')" data-col="subtemaDescricao">Subtema <span class="sort-arrow">↕</span></th>
+              </tr>
+            </thead>
+            <tbody id="bodyAll"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-3);font-family:'IBM Plex Mono',monospace" id="countAll"></div>
+    </div>
+
+    <!-- TAB 2: GROUPED -->
+    <div class="tab-panel" id="tab-grouped">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="searchGrouped" placeholder="Buscar por número de processo ou descrição..." oninput="filterGrouped()">
+        </div>
+        <button class="btn-export" onclick="exportCSV('grouped')">⬇ CSV</button>
+        <button class="btn-export" onclick="exportXLSX('grouped')" style="background:var(--accent-light);color:var(--accent);border-color:#b6d4c0">⬇ Excel</button>
+      </div>
+
+      <!-- LINK TOOLBAR -->
+      <div class="link-toolbar" id="linkToolbar">
+        <span style="font-weight:500;color:var(--text)">Modo análise:</span>
+        <button class="link-mode-btn" id="btnModeOff" onclick="setLinkMode('off')">Navegar</button>
+        <button class="link-mode-btn" id="btnModeLink" onclick="setLinkMode('link')">🔗 Vincular</button>
+        <button class="link-mode-btn" id="btnModeUnlink" onclick="setLinkMode('unlink')">✂ Desvincular</button>
+        <span id="linkInstructions" style="font-size:11px;color:var(--text-3);font-style:italic"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button class="btn-clear-links" onclick="clearAllLinks()">Limpar vínculos</button>
+          <span class="save-notice" id="saveNotice">salvo automaticamente</span>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <div class="table-scroll">
+          <table id="tableGrouped">
+            <thead>
+              <tr>
+                <th>Nº Processo</th>
+                <th>Prejulgado</th>
+                <th>Vínculos</th>
+                <th>Descrição</th>
+                <th>Área</th>
+                <th>Tema</th>
+                <th>Subtema</th>
+                <th>Comentário do analista</th>
+              </tr>
+            </thead>
+            <tbody id="bodyGrouped"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-3);font-family:'IBM Plex Mono',monospace" id="countGrouped"></div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>Visualizador de Prejulgados — dados processados localmente, sem envio a servidores</footer>
+
+<script>
+// Snapshot placeholders — replaced at export time
+var __SNAPSHOT_LINKS__ = {};
+var __SNAPSHOT_NOTES__ = {};
+</script>
+<script>
+let allData = [];
+let sortState = { col: null, dir: 1 };
+
+function stripHtml(html) {
+  if (!html) return '';
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+}
+
+// ── Painel JSON ──────────────────────────────────────────────────
+function toggleJsonPanel() {
+  const panel = document.getElementById('jsonPanel');
+  const btn   = document.getElementById('btnAtualizarJson');
+  const aberto = panel.style.display !== 'none';
+  panel.style.display = aberto ? 'none' : 'flex';
+  btn.textContent = aberto ? '⟳ Atualizar JSON' : '✕ Fechar';
+}
+
+function loadFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    document.getElementById('jsonInput').value = ev.target.result;
+    processJson();
+  };
+  r.readAsText(file);
+}
+
+function processJson() {
+  const raw = document.getElementById('jsonInput').value.trim();
+  if (!raw) return showStatus('Cole o JSON antes de processar.', true);
+  let data;
+  try {
+    data = JSON.parse(raw);
+    if (!Array.isArray(data)) data = [data];
+  } catch(e) {
+    return showStatus('JSON inválido. Verifique o formato e tente novamente.', true);
+  }
+  allData = data.map(d => ({ ...d, _desc: stripHtml(d.descricao) }));
+  // Fecha painel
+  document.getElementById('jsonPanel').style.display = 'none';
+  document.getElementById('btnAtualizarJson').textContent = '⟳ Atualizar JSON';
+  renderizarTudo();
+}
+
+function renderizarTudo() {
+  document.getElementById('recordCount').textContent = allData.length + ' registros';
+  populateFilters();
+  renderAll(allData);
+  renderGrouped(allData);
+  document.getElementById('outputSection').style.display = 'block';
+  const areas   = [...new Set(allData.map(d => d.areaDescricao).filter(Boolean))];
+  const temas   = [...new Set(allData.map(d => d.temaDescricao).filter(Boolean))];
+  const grouped = groupByProcesso(allData).filter(g => g.items.length > 1);
+  showStatus(`${allData.length} prejulgados carregados.`, false, [
+    allData.length + ' total',
+    areas.length + ' áreas',
+    temas.length + ' temas',
+    grouped.length + ' processos c/ múltiplos'
+  ]);
+}
+
+function showStatus(msg, err, chips) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'show';
+  document.getElementById('statusDot').className = 'status-dot' + (err ? ' err' : '');
+  document.getElementById('statusMsg').textContent = msg;
+  const cc = document.getElementById('statChips');
+  cc.innerHTML = chips ? chips.map(c => `<span class="chip">${c}</span>`).join('') : '';
+}
+
+function populateFilters() {
+  const areas = ['', ...[...new Set(allData.map(d => d.areaDescricao).filter(Boolean))].sort()];
+  const temas = ['', ...[...new Set(allData.map(d => d.temaDescricao).filter(Boolean))].sort()];
+  const fa = document.getElementById('filterArea');
+  const ft = document.getElementById('filterTema');
+  fa.innerHTML = areas.map(a => `<option value="${a}">${a || 'Todas as áreas'}</option>`).join('');
+  ft.innerHTML = temas.map(t => `<option value="${t}">${t || 'Todos os temas'}</option>`).join('');
+}
+
+function makeDescCell(text) {
+  const id = 'desc_' + Math.random().toString(36).slice(2);
+  return `<td class="desc-cell">
+    <div class="desc-text" id="${id}">${text}</div>
+    ${text.length > 180 ? `<button class="expand-btn" onclick="toggleDesc('${id}',this)">+ ver mais</button>` : ''}
+  </td>`;
+}
+
+function toggleDesc(id, btn) {
+  const el = document.getElementById(id);
+  const expanded = el.classList.toggle('expanded');
+  btn.textContent = expanded ? '− ver menos' : '+ ver mais';
+}
+
+function renderAll(data) {
+  const body = document.getElementById('bodyAll');
+  if (!data.length) {
+    body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔍</div><p>Nenhum resultado encontrado.</p></div></td></tr>`;
+    document.getElementById('countAll').textContent = '';
+    return;
+  }
+  body.innerHTML = data.map(d => `<tr>
+    <td><span class="proc-badge">${d.numeroProcesso || '—'}</span></td>
+    <td><span class="num-badge">${d.codigo || d.id || '—'}</span></td>
+    ${makeDescCell(d._desc)}
+    <td><span class="area-tag">${d.areaDescricao || '—'}</span></td>
+    <td style="color:var(--text-2);font-size:12px">${d.temaDescricao || '—'}</td>
+    <td style="color:var(--text-3);font-size:12px">${d.subtemaDescricao || '—'}</td>
+  </tr>`).join('');
+  document.getElementById('countAll').textContent = data.length + ' registros exibidos';
+}
+
+function groupByProcesso(data) {
+  const map = {};
+  data.forEach(d => {
+    const k = d.numeroProcesso || '(sem processo)';
+    if (!map[k]) map[k] = [];
+    map[k].push(d);
+  });
+  return Object.entries(map).map(([k, items]) => ({ processo: k, items }));
+}
+
+function renderGrouped(data) {
+  const groups = groupByProcesso(data).filter(g => g.items.length > 1);
+  const body = document.getElementById('bodyGrouped');
+  if (!groups.length) {
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum processo com múltiplos prejulgados encontrado.</p></div></td></tr>`;
+    document.getElementById('countGrouped').textContent = '';
+    return;
+  }
+  let html = '';
+  groups.forEach(g => {
+    html += `<tr class="group-header-row"><td colspan="8">PROCESSO ${g.processo} — ${g.items.length} prejulgados</td></tr>`;
+    g.items.forEach(d => {
+      const key = String(d.codigo || d.id);
+      const comment = userNotes[key] || '';
+      const linkBadges = renderLinkBadges(key);
+      html += `<tr class="selectable-row" data-key="${key}" data-proc="${g.processo}" onclick="handleRowClick(this)">
+        <td><span class="proc-badge">${g.processo}</span></td>
+        <td><span class="num-badge">${d.codigo || d.id || '—'}</span></td>
+        <td style="min-width:120px;vertical-align:top"><div class="link-badges-cell" id="badges_${key}">${linkBadges}</div></td>
+        ${makeDescCell(d._desc)}
+        <td><span class="area-tag">${d.areaDescricao || '—'}</span></td>
+        <td style="color:var(--text-2);font-size:12px">${d.temaDescricao || '—'}</td>
+        <td style="color:var(--text-3);font-size:12px">${d.subtemaDescricao || '—'}</td>
+        <td class="comment-cell"><textarea class="comment-area" placeholder="Anotação…" oninput="saveComment('${key}',this.value)">${comment}</textarea></td>
+      </tr>`;
+    });
+  });
+  body.innerHTML = html;
+  document.getElementById('countGrouped').textContent = groups.length + ' processos / ' + groups.reduce((s,g)=>s+g.items.length,0) + ' prejulgados';
+}
+
+// ── LINK SYSTEM ──────────────────────────────────────────────────
+// Storage keys
+// Chaves legacy (mantidas para compatibilidade com exportHTML offline)
+const STORAGE_LINKS = 'pj_links_v1';
+const STORAGE_NOTES = 'pj_notes_v1';
+
+// In-memory state
+let userLinks = {};   // { groupId: [key, key, ...] }  — groupId is a string like "g1"
+let userNotes = {};   // { key: 'comment text' }
+let linkMode = 'off'; // 'off' | 'link' | 'unlink'
+let pendingKey = null;
+let nextGroupId = 1;
+
+// Color palette for link groups (10 distinct)
+const GROUP_COLORS = [
+  { bg:'#dbeafe', border:'#3b82f6', text:'#1e3a8a' },
+  { bg:'#fce7f3', border:'#ec4899', text:'#831843' },
+  { bg:'#d1fae5', border:'#10b981', text:'#065f46' },
+  { bg:'#fef3c7', border:'#f59e0b', text:'#78350f' },
+  { bg:'#ede9fe', border:'#8b5cf6', text:'#4c1d95' },
+  { bg:'#fee2e2', border:'#ef4444', text:'#7f1d1d' },
+  { bg:'#e0f2fe', border:'#0ea5e9', text:'#0c4a6e' },
+  { bg:'#fdf4ff', border:'#d946ef', text:'#701a75' },
+  { bg:'#f0fdf4', border:'#22c55e', text:'#14532d' },
+  { bg:'#fff7ed', border:'#f97316', text:'#7c2d12' },
+];
+
+function colorForGroup(gid) {
+  const idx = (parseInt(gid.replace('g','')) - 1) % GROUP_COLORS.length;
+  return GROUP_COLORS[idx];
+}
+
+// ── API ──────────────────────────────────────────────────────────
+// Detecta se está rodando no navegador local (arquivo) ou no servidor web
+const USA_API = window.location.protocol !== 'file:';
+
+async function loadStorage() {
+  userLinks = {}; userNotes = {};
+  if (!usuarioAtual) return;
+  if (!USA_API) {
+    // fallback localStorage para uso offline do HTML
+    try {
+      const lRaw = localStorage.getItem(`pj_${usuarioAtual}_links`);
+      const nRaw = localStorage.getItem(`pj_${usuarioAtual}_notes`);
+      userLinks = lRaw ? JSON.parse(lRaw) : {};
+      userNotes = nRaw ? JSON.parse(nRaw) : {};
+    } catch(e) {}
+  } else {
+    try {
+      const res = await fetch(`/api/estado/${usuarioAtual}`);
+      const data = await res.json();
+      userLinks = data.vinculos || {};
+      userNotes = data.comentarios || {};
+    } catch(e) { console.error('Erro ao carregar estado:', e); }
+  }
+  const ids = Object.keys(userLinks).map(k=>parseInt(k.replace('g',''))).filter(n=>!isNaN(n));
+  nextGroupId = ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+async function saveStorage() {
+  if (!usuarioAtual) return;
+  if (!USA_API) {
+    localStorage.setItem(`pj_${usuarioAtual}_links`, JSON.stringify(userLinks));
+    localStorage.setItem(`pj_${usuarioAtual}_notes`, JSON.stringify(userNotes));
+  } else {
+    try {
+      await fetch(`/api/vinculos/${usuarioAtual}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ links: userLinks })
+      });
+    } catch(e) { console.error('Erro ao salvar vínculos:', e); }
+  }
+  mostrarSalvo();
+}
+
+async function apiSalvarComentario(key, texto) {
+  if (!usuarioAtual) return;
+  if (!USA_API) {
+    userNotes[key] = texto;
+    localStorage.setItem(`pj_${usuarioAtual}_notes`, JSON.stringify(userNotes));
+  } else {
+    try {
+      await fetch(`/api/comentario/${usuarioAtual}/${key}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ texto })
+      });
+    } catch(e) { console.error('Erro ao salvar comentário:', e); }
+  }
+  mostrarSalvo();
+}
+
+function mostrarSalvo() {
+  const el = document.getElementById('saveNotice');
+  if (!el) return;
+  el.textContent = '✓ salvo';
+  el.classList.add('saved');
+  setTimeout(() => { el.textContent = 'sincronizado'; el.classList.remove('saved'); }, 1500);
+}
+
+
+
+const debounceMap = {};
+function saveComment(key, val) {
+  userNotes[key] = val;
+  clearTimeout(debounceMap[key]);
+  debounceMap[key] = setTimeout(() => apiSalvarComentario(key, val), 800);
+}
+
+function findGroupForKey(key) {
+  for (const [gid, keys] of Object.entries(userLinks)) {
+    if (keys.includes(key)) return gid;
+  }
+  return null;
+}
+
+function renderLinkBadges(key) {
+  const gid = findGroupForKey(key);
+  if (!gid) return '<span style="font-size:11px;color:var(--text-3)">—</span>';
+  const color = colorForGroup(gid);
+  const peers = userLinks[gid].filter(k => k !== key);
+  if (!peers.length) return '<span style="font-size:11px;color:var(--text-3)">—</span>';
+  return peers.map(pk => {
+    return `<span class="linked-badge" style="background:${color.bg};color:${color.text};border:1px solid ${color.border}">
+      <span style="width:6px;height:6px;border-radius:50%;background:${color.border};flex-shrink:0;display:inline-block"></span>
+      Prej. ${pk}
+    </span>`;
+  }).join('');
+}
+
+function refreshAllBadges() {
+  document.querySelectorAll('[id^="badges_"]').forEach(el => {
+    const key = el.id.replace('badges_','');
+    el.innerHTML = renderLinkBadges(key);
+  });
+  // refresh row highlight colors
+  document.querySelectorAll('.selectable-row').forEach(row => {
+    const key = row.dataset.key;
+    const gid = findGroupForKey(key);
+    row.style.borderLeft = gid ? `3px solid ${colorForGroup(gid).border}` : '';
+  });
+}
+
+function setLinkMode(mode) {
+  linkMode = mode;
+  pendingKey = null;
+  document.querySelectorAll('.selectable-row').forEach(r => r.classList.remove('selected','pending'));
+  ['btnModeOff','btnModeLink','btnModeUnlink'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const activeId = { off:'btnModeOff', link:'btnModeLink', unlink:'btnModeUnlink' }[mode];
+  document.getElementById(activeId).classList.add('active');
+  const inst = document.getElementById('linkInstructions');
+  inst.textContent = {
+    off: '',
+    link: 'Clique no 1º prejulgado → depois no 2º para vincular (mesmo processo)',
+    unlink: 'Clique em um prejulgado vinculado para remover seu grupo'
+  }[mode];
+}
+
+function handleRowClick(row) {
+  if (linkMode === 'off') return;
+  const key = row.dataset.key;
+  const proc = row.dataset.proc;
+
+  if (linkMode === 'unlink') {
+    const gid = findGroupForKey(key);
+    if (!gid) return;
+    delete userLinks[gid];
+    saveStorage();
+    refreshAllBadges();
+    return;
+  }
+
+  // link mode
+  if (!pendingKey) {
+    pendingKey = key;
+    row.classList.add('pending');
+    document.getElementById('linkInstructions').textContent = `Prejulgado ${key} selecionado — clique no 2º para vincular`;
+    return;
+  }
+
+  if (pendingKey === key) {
+    // deselect
+    row.classList.remove('pending');
+    pendingKey = null;
+    document.getElementById('linkInstructions').textContent = 'Clique no 1º prejulgado → depois no 2º para vincular (mesmo processo)';
+    return;
+  }
+
+  // check same processo
+  const pendingRow = document.querySelector(`.selectable-row[data-key="${pendingKey}"]`);
+  if (pendingRow && pendingRow.dataset.proc !== proc) {
+    document.getElementById('linkInstructions').textContent = '⚠ Só é possível vincular prejulgados do mesmo processo.';
+    setTimeout(() => document.getElementById('linkInstructions').textContent = 'Clique no 1º prejulgado → depois no 2º para vincular (mesmo processo)', 2000);
+    pendingRow.classList.remove('pending');
+    pendingKey = null;
+    return;
+  }
+
+  // find existing groups
+  const gidA = findGroupForKey(pendingKey);
+  const gidB = findGroupForKey(key);
+
+  if (gidA && gidB) {
+    if (gidA === gidB) {
+      // already linked
+      document.getElementById('linkInstructions').textContent = 'Estes prejulgados já estão vinculados entre si.';
+      setTimeout(() => document.getElementById('linkInstructions').textContent = 'Clique no 1º prejulgado → depois no 2º para vincular (mesmo processo)', 2000);
+    } else {
+      // merge groups
+      userLinks[gidA] = [...new Set([...userLinks[gidA], ...userLinks[gidB]])];
+      delete userLinks[gidB];
+    }
+  } else if (gidA) {
+    if (!userLinks[gidA].includes(key)) userLinks[gidA].push(key);
+  } else if (gidB) {
+    if (!userLinks[gidB].includes(pendingKey)) userLinks[gidB].push(pendingKey);
+  } else {
+    const newGid = 'g' + nextGroupId++;
+    userLinks[newGid] = [pendingKey, key];
+  }
+
+  if (pendingRow) pendingRow.classList.remove('pending');
+  pendingKey = null;
+  saveStorage();
+  refreshAllBadges();
+  document.getElementById('linkInstructions').textContent = '✓ Vínculo criado! Clique no próximo par.';
+  setTimeout(() => document.getElementById('linkInstructions').textContent = 'Clique no 1º prejulgado → depois no 2º para vincular (mesmo processo)', 1800);
+}
+
+function clearAllLinks() {
+  if (!confirm('Remover todos os vínculos criados? Esta ação não pode ser desfeita.')) return;
+  userLinks = {};
+  nextGroupId = 1;
+  saveStorage();
+  refreshAllBadges();
+}
+
+
+function filterAll() {
+  const q = document.getElementById('searchAll').value.toLowerCase();
+  const area = document.getElementById('filterArea').value;
+  const tema = document.getElementById('filterTema').value;
+  let filtered = allData;
+  if (q) filtered = filtered.filter(d =>
+    (d.numeroProcesso||'').toLowerCase().includes(q) ||
+    (d._desc||'').toLowerCase().includes(q) ||
+    (d.areaDescricao||'').toLowerCase().includes(q) ||
+    (d.temaDescricao||'').toLowerCase().includes(q) ||
+    (d.subtemaDescricao||'').toLowerCase().includes(q) ||
+    String(d.codigo||'').includes(q)
+  );
+  if (area) filtered = filtered.filter(d => d.areaDescricao === area);
+  if (tema) filtered = filtered.filter(d => d.temaDescricao === tema);
+  renderAll(filtered);
+}
+
+function filterGrouped() {
+  const q = document.getElementById('searchGrouped').value.toLowerCase();
+  if (!q) { renderGrouped(allData); return; }
+  const filtered = allData.filter(d =>
+    (d.numeroProcesso||'').toLowerCase().includes(q) ||
+    (d._desc||'').toLowerCase().includes(q)
+  );
+  renderGrouped(filtered);
+}
+
+function sortTable(tab, col) {
+  if (sortState.col === col) sortState.dir *= -1;
+  else { sortState.col = col; sortState.dir = 1; }
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.col === col);
+    if (th.dataset.col === col) th.querySelector('.sort-arrow').textContent = sortState.dir === 1 ? '↑' : '↓';
+    else th.querySelector('.sort-arrow').textContent = '↕';
+  });
+  allData.sort((a, b) => {
+    const av = String(a[col]||'').toLowerCase();
+    const bv = String(b[col]||'').toLowerCase();
+    return av < bv ? -sortState.dir : av > bv ? sortState.dir : 0;
+  });
+  filterAll();
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── DADOS EMBUTIDOS ──────────────────────────────────────────────
+const DADOS_EMBUTIDOS = [{"id": 65, "versao": 1, "codigo": 63, "descricao": "É possível que a LOA discrimine despesas apenas por categoria econômica, grupo de natureza e modalidade de aplicação, desde que o detalhamento por elemento seja feito por decreto executivo antes do início da execução orçamentária, observando o Quadro de Detalhamento de Despesa.", "dataPublicacaostr": "Publicado em: 28/04/2026", "numeroProcesso": "25101298-0", "acordao": "699/2026", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 202, "temaDescricao": "Execução orçamentária", "subtemaId": 999, "subtemaDescricao": "Requisito"}, {"id": 64, "versao": 1, "codigo": 62, "descricao": "I. A base de cálculo do ISS incidente sobre serviços de construção civil é o preço total do serviço contratado, não sendo possível deduzir o valor dos materiais empregados na obra, salvo se produzidos pelo próprio prestador fora do local da prestação dos serviços e por ele destacadamente comercializados com a incidência do ICMS.\n\nII. O restabelecimento da interpretação restritiva do STJ acerca da base de cálculo do ISS na construção civil operou-se com o trânsito em julgado do Resp nº 1.916.376/RS, em 12/05/2023, marco temporal a partir do qual descabe a exigência retroativa sobre fatos geradores anteriores, mas nasce o poder-dever do Fisco de constituir e efetivamente cobrar os créditos tributários sobre fatos geradores posteriores, observados os prazos decadenciais.\n\nIII. Atos infralegais (decretos, portarias e instruções normativas) que autorizam deduções de materiais além dos limites fixados pela LC nº 116/2003 são nulos de pleno direito, cabendo ao Chefe do Executivo proclamar-lhes a nulidade de ofício e de imediato; leis formais municipais que concedem tais deduções exigem regular processo legislativo para revogação, sujeitando-se a retomada da exigência à observância cumulativa das anterioridades anual e nonagesimal.\n\nIV. A maximização da arrecadação do ISS na construção civil é medida urgente e estratégica, porquanto a receita efetivamente realizada no período de 2019 a 2026 comporá a receita média de referência que definirá o coeficiente de participação vinculante do município na futura partilha do Imposto sobre Bens e Serviços (IBS), nos termos da EC nº 132/2023 e da LC nº 227/2026.\n\nV. A inércia deliberada ou a abstenção injustificada das autoridades fazendárias e do Chefe do Poder Executivo em promover a arrecadação integral do ISS na construção civil a partir de 12/05/2023, bem como a demora na deflagração do processo legislativo corretivo, podem configurar renúncia ilegal de receita (art. 11 da LC nº 101/2000) e ato de improbidade administrativa lesivo ao Erário (art. 10, inciso X, da Lei Federal nº 8.429/1992), sujeitando os responsáveis à emissão de Parecer Prévio pela rejeição de contas, à instauração de Auditoria Especial para apuração de débito e à aplicação de multas pecuniárias.", "dataPublicacaostr": "Publicado em: 07/04/2026", "numeroProcesso": "25101749-7", "acordao": "568/2026", "relator": "MARCOS LORETO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 228, "temaDescricao": "Receita pública", "subtemaId": 998, "subtemaDescricao": "Arrecadação tributária"}, {"id": 63, "versao": 1, "codigo": 61, "descricao": "1. A Câmara de Vereadores não detém legitimidade ativa, administrativa ou judicial, para pleitear a restituição de valores pagos a maior ao RGPS, por se tratar de pretensão de natureza patrimonial, alheia às suas prerrogativas institucionais.\n\n2. Eventuais valores recuperados em decorrência de pagamento indevido de contribuições previdenciárias pertencem ao Município, ingressando em seus cofres de forma desvinculada de qualquer órgão específico.", "dataPublicacaostr": "Publicado em: 27/03/2026", "numeroProcesso": "25101478-2", "acordao": "493/2026", "relator": "CARLOS BARBOSA PIMENTEL", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 502, "temaDescricao": "Regime previdenciário", "subtemaId": 997, "subtemaDescricao": "Exigências"}, {"id": 62, "versao": 1, "codigo": 60, "descricao": "1- Os recursos provenientes do principal dos precatórios do FUNDEF, recebidos anteriormente à Emenda Constitucional nº 114/2021, destinam-se exclusivamente à manutenção e desenvolvimento da educação básica pública, sem subvinculação. Para os precatórios recebidos após a promulgação da EC nº 114/2021, há a subvinculação obrigatória de destinação mínima de 60% aos profissionais do magistério (ativos, inativos e pensionistas) que exerciam suas funções durante o período dos repasses a menor (FUNDEF 1997-2006 ou FUNDEB 2007-2020), mediante pagamento de abono, não se estendendo aos que ingressaram posteriormente no serviço público.\n\n2- Os valores recebidos a título de abono do FUNDEF, tanto pelos professores quanto por seus herdeiros em caso de falecimento do beneficiário, são isentos de imposto de renda.\n\n3- A totalidade dos recursos principais oriundos dos precatórios do FUNDEF, independentemente da data de recebimento, deve ser movimentada exclusivamente em conta específica do município, com escrituração contábil própria e vinculação ao FUNDEB, sendo vedada sua transferência para outras contas. Essa regra não se aplica apenas aos valores relativos aos juros de mora.", "dataPublicacaostr": "Publicado em: 15/05/2026", "numeroProcesso": "26100187-5", "acordao": "581/2026", "relator": "RANILSON RAMOS", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 61, "versao": 2, "codigo": 59, "descricao": "1 – É juridicamente possível ao Poder Legislativo municipal celebrar\nconvênio com instituição pública para a oferta de cursos gratuitos à&nbsp;população, desde que a iniciativa possua caráter institucional voltado à\neducação para a cidadania, à compreensão do processo legislativo, ao\nfortalecimento do controle social ou a temas congêneres relacionados às\ncompetências próprias do Parlamento, não se convertendo em instrumento\nde execução de política pública educacional típica do Poder Executivo.&nbsp;<p><br></p><p>2 – A realização de despesas para esse fim exige compatibilidade com\nprograma ou ação previamente prevista no planejamento institucional e\norçamentário da Casa Legislativa, devendo a celebração do convênio ser\nprecedida de planejamento administrativo que demonstre a necessidade, a\nadequação e a vantagem da parceria para o atendimento do interesse\npúblico e das finalidades institucionais do Poder Legislativo, observadas, no\nque couber, as normas aplicáveis às parcerias administrativas, inclusive as\ndisposições da Lei Federal nº 14.133/2021.&nbsp;</p><p><br></p><p>3 – A execução do convênio deverá observar as normas de planejamento e\nresponsabilidade fiscal, com previsão na Lei Orçamentária Anual e\ncompatibilidade com o Plano Plurianual e a Lei de Diretrizes Orçamentárias,\nbem como sujeitar-se à adequada prestação de contas, mediante\ncomprovação da execução física e financeira do objeto, do emprego regular\ndos recursos públicos, da efetiva realização dos cursos e da participação dos\nbeneficiários, de modo a permitir a verificação do cumprimento das metas\npactuadas e da aderência das atividades às finalidades institucionais do\nPoder Legislativo.\n&nbsp;</p>", "dataPublicacaostr": "Publicado em: 24/03/2026", "numeroProcesso": "25101772-2", "acordao": "451/2026", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 1677, "subtemaDescricao": "Políticas públicas"}, {"id": 60, "versao": 2, "codigo": 58, "descricao": "<div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\">A concessão de diárias exige autorização prévia com\njustificativa específica que demonstre claramente a\nfinalidade publica, vedadas motivações genéricas, devendo\no processo administrativo ser instruído com documentação\ncomprobatória do deslocamento e da participação nos\ncompromissos instituicionais, e cumpridas as demais\nexigências previstas em legislação local, sob pena de\nresponsabilização por falha no controle interno, rejeição de\ncontas, aplicação de multas e determinação de\nressarcimento ao erário.</span></div>", "dataPublicacaostr": "Publicado em: 01/04/2026", "numeroProcesso": "26100256-9", "acordao": "530/2026", "relator": "RODRIGO NOVAES", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 400, "temaDescricao": "Diárias", "subtemaId": 1729, "subtemaDescricao": "Requisitos e normativos"}, {"id": 58, "versao": 3, "codigo": 57, "descricao": "1 - Quanto ao destinatário da prestação de contas: Nos termos do § 3º do\nart. 7º da Lei Estadual nº 15.063/2013 e do inciso IV do art. 10 do Decreto nº\n40.606/2014, a FACEPE, na qualidade de gestora dos recursos não\nreembolsáveis do Fundo INOVAR-PE, não deve prestar contas diretamente\nao TCE-PE sobre estes recursos específicos de forma isolada, mas\nsim prestar contas diretamente à Agência de Fomento do Estado de\nPernambuco (AGEFEPE) e ao Comitê Deliberativo.&nbsp;<div><br></div><div>2. Quanto ao procedimento: A FACEPE deve cumprir as exigências de\nprocedimento, demonstração e comprovação de aplicações estabelecidas\npelas normas da AGEFEPE. Cabe à AGEFEPE, por sua vez, consolidar\nessas informações na prestação de contas anual do Fundo INOVAR-PE a\nser enviada a este Tribunal, sanando as dúvidas quanto ao preenchimento&nbsp;no sistema e-TCE-PE, visto que a responsabilidade final de envio dos dados\nconsolidados do Fundo recai sobre a instituição gestora, a Agência de\nFomento do Estado de Pernambuco (AGEFEPE). </div>", "dataPublicacaostr": "Publicado em: 20/03/2026", "numeroProcesso": "25101777-1", "acordao": "440/2026", "relator": "MARCOS LORETO", "areaId": 1, "areaDescricao": "Competências do TCE", "temaId": 29, "temaDescricao": "Fundos", "subtemaId": 69, "subtemaDescricao": "Prestação de contas"}, {"id": 57, "versao": 4, "codigo": 56, "descricao": "<div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\">1. É possível\no pagamento de retribuição pecuniária pela\npresença nas reuniões (jeton) aos membros do\nConselho Deliberativo, do Conselho Fiscal e do\nComitê de Investimentos do RPPS, desde que\nprevisto em lei municipal.</span></div><div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\"><br></span></div><div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\">2.&nbsp;</span><span style=\"background-color: transparent; font-size: 0.9rem; text-align: left;\">É vedado o\nfornecimento de cartão corporativo aos\nconselheiros como retribuição pelos serviços\nprestados, por se tratar de instrumento de\npagamento destinado a cobrir despesas\nespecíficas da administração.</span></div><div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem; text-align: left;\"><br></span></div><div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem; text-align: left;\">3.&nbsp;</span><span style=\"background-color: transparent; font-size: 0.9rem; text-align: left;\">É possível o\ncusteio do jeton com recursos da Taxa de\nAdministração, desde que previsto em lei\nmunicipal e respeitados os limites estabelecidos\npela Portaria MTP nº 1.467 /2022.</span></div>", "dataPublicacaostr": "Publicado em: 16/03/2026", "numeroProcesso": "25101211-6", "acordao": "387/2026", "relator": "MARCOS LORETO", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 502, "temaDescricao": "Regime previdenciário", "subtemaId": 1737, "subtemaDescricao": "Unidade gestora"}, {"id": 56, "versao": 2, "codigo": 55, "descricao": "<div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\">1.&nbsp;O repasse antecipado de duodécimos pelo Poder Executivo municipal\nàs Câmaras Legislativas, mesmo dentro do percentual constitucional, é\nconsiderado irregular por não haver autorização legal expressa e por\ncontrariar o caráter mensal das parcelas previsto no art. 168 da\nConstituição Federal;</span></div><div style=\"text-align: justify;\"><br></div><div style=\"text-align: justify;\">2.&nbsp;Mesmo havendo disponibilidade financeira e orçamentária, o Poder\nExecutivo Municipal não pode realizar a antecipação do duodécimo.\nTal prática violaria o conceito constitucional de duodécimo, o\nCronograma de Execução Mensal de Desembolso previsto na Lei de\nResponsabilidade Fiscal, e o planejamento orçamentário;</div><div style=\"text-align: justify;\"><br></div><div style=\"text-align: justify;\">3.&nbsp;O Poder Executivo Municipal não pode remeter parcela do duodécimo\nsuperior ao valor contabilizado e previsto na LOA/RCL, mesmo com\nposterior dedução nas parcelas subsequentes. Essa prática\ndesvirtuaria a lógica constitucional do art. 168, poderia configurar ato\nde gestão temerária ou irregularidade, e potencialmente afetaria a\nautonomia do Poder Legislativo.</div><div><br></div>", "dataPublicacaostr": "Publicado em: 05/03/2026", "numeroProcesso": "26100103-6", "acordao": "253/2026", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 202, "temaDescricao": "Execução orçamentária", "subtemaId": 1668, "subtemaDescricao": "Duodécimos "}, {"id": 55, "versao": 3, "codigo": 54, "descricao": "<div style=\"text-align: justify;\"><span style=\"background-color: transparent; font-size: 0.9rem;\">1. É constitucional a concessão, mediante lei específica para\nPrefeitos, Vice-Prefeitos e Secretários Municipais, e por lei ou\nresolução para os Vereadores, de décimo terceiro salário e terço\nde férias. Tais verbas são compatíveis com o regime de subsídio\nfixado em parcela única (art. 39, §4º, da Constituição Federal), conforme o entendimento fixado pelo Supremo Tribunal Federal\nno Tema 484 de Repercussão Geral (RE 650.898/RS).&nbsp;</span></div><div style=\"text-align: justify;\"><br></div><div style=\"text-align: justify;\">2.&nbsp;Revela-se igualmente constitucional a instituição do direito às\nférias e ao décimo terceiro aos Vereadores durante a própria\nlegislatura, uma vez que o princípio da anterioridade (art. 29, VI,\nda CF) restringe-se estritamente ao conceito de subsídio mensal.\nA criação dessas parcelas não se submete, portanto, à regra da\nlegislatura subsequente, podendo ser disciplinada por lei ou\nresolução no curso do mandato.</div><div style=\"text-align: justify;\"><br></div><div style=\"text-align: justify;\"><i>(Ratificado no Processo 25101348-0, Acórdão 300/2026, publicado em&nbsp;<span style=\"color: rgba(0, 0, 0, 0.87);\">10/03/2026)</span></i></div>", "dataPublicacaostr": "Publicado em: 30/01/2026", "numeroProcesso": "25101319-4", "acordao": "73/2026", "relator": "VALDECIR PASCOAL", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 445, "temaDescricao": "Subsídio", "subtemaId": 1659, "subtemaDescricao": "Membro de Poder"}, {"id": 54, "versao": 2, "codigo": 53, "descricao": "Os requisitos de aposentadoria de servidores municipais não\nreservados expressamente à competência da Lei Orgânica serão\ndefinidos pela legislação municipal (Lei Orgânica ou lei\ncomplementar) mais recente que tratar da matéria.", "dataPublicacaostr": "Publicado em: 14/11/2025", "numeroProcesso": "25101282-7", "acordao": "2397/2025", "relator": "RODRIGO NOVAES", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 374, "temaDescricao": "Aposentadoria", "subtemaId": 1099, "subtemaDescricao": "Legislação"}, {"id": 53, "versao": 3, "codigo": 52, "descricao": "Compete privativamente à Lei Orgânica Municipal fixar a idade\nmínima para a aposentadoria voluntária dos servidores públicos\nefetivos, ressalvada a competência da lei complementar para&nbsp;estabelecer critérios diferenciados de idade e tempo de\ncontribuição para servidores com deficiência ou expostos a\nagentes nocivos.&nbsp;", "dataPublicacaostr": "Publicado em: 14/11/2025", "numeroProcesso": "25101282-7", "acordao": "2397/2025", "relator": "RODRIGO NOVAES", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 374, "temaDescricao": "Aposentadoria", "subtemaId": 1097, "subtemaDescricao": "Idade mínima"}, {"id": 52, "versao": 3, "codigo": 51, "descricao": "A Lei Orgânica Municipal possui supremacia hierárquica sobre as\ndemais normas municipais, incluindo a lei complementar,\nprevalecendo em caso de conflito e exigindo que esta lhe guarde\nconformidade.", "dataPublicacaostr": "Publicado em: 14/11/2025", "numeroProcesso": "25101282-7", "acordao": "2397/2025", "relator": "RODRIGO NOVAES", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 1797, "subtemaDescricao": "Aplicabilidade de leis e normas infralegais"}, {"id": 51, "versao": 6, "codigo": 50, "descricao": "<div style=\"color: rgb(34, 34, 34);\">1. Comete erro grosseiro, nos termos da Súmula nº 20/TCE-PE, o advogado (particular ou público) que, sem advertir expressamente o agente público, emitir parecer jurídico adotando posicionamento contrário: a) às decisões proferidas pelo STF em controle concentrado de constitucionalidade ou em sede de repercussão geral; b) às súmulas vinculantes; c) às decisões proferidas em sede de incidente de resolução de demandas repetitivas (IRDR) e em julgamento de recursos extraordinário e especial repetitivos; d) às orientações consolidadas pelo Pleno do TCE/PE; e) à legislação e à jurisprudência consolidada em enunciados de súmulas do STJ e do STF. 2. A configuração do erro grosseiro decorre da grave inobservância dos deveres de cuidado e de informação plena. 3. A responsabilização do parecerista jurídico deve ser apurada no âmbito de cada processo específico.</div>", "dataPublicacaostr": "Publicado em: 14/11/2025", "numeroProcesso": "25101137-9", "acordao": "2396/2025", "relator": "RODRIGO NOVAES", "areaId": 10, "areaDescricao": "Responsabilidade", "temaId": 465, "temaDescricao": "Culpa", "subtemaId": 1491, "subtemaDescricao": "Erro grosseiro"}, {"id": 50, "versao": 3, "codigo": 49, "descricao": "É possível a concessão de auxílio-saúde aos servidores efetivos,\ncomissionados e vereadores das Câmaras Municipais, desde que seja criado\nmediante lei local específica; que tenha caráter indenizatório; que sejam\nobservados os limites e restrições orçamentárias constitucionais e legais; e\nque sejam fixados os valores com base nos princípios da razoabilidade e da\nproporcionalidade, podendo-se utilizar como parâmetro a Resolução nº 294\n/2019 do CNJ.", "dataPublicacaostr": "Publicado em: 07/11/2025", "numeroProcesso": "25101364-9", "acordao": "2316/2025", "relator": "MARCOS LORETO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 387, "temaDescricao": "Auxílio-saúde", "subtemaId": 1796, "subtemaDescricao": "Requisitos"}, {"id": 49, "versao": 9, "codigo": 48, "descricao": "<div style=\"text-align: justify;\">a) A alíquota suplementar é critério de apuração da respectiva contribuição suplementar, a qual consiste em encargo sob a responsabilidade do ente federativo.</div><div>b) A contribuição suplementar para o regime próprio de previdência pode ser enquadrada como encargo social, visto que sua apuração é feita pela incidência de alíquota específica sobre a folha de pagamento, autorizando o seu enquadramento dentro do conceito de remuneração dos profissionais da educação básica e, por conseguinte, apta a ser custeada com recursos do FUNDEB.</div>", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101316-9", "acordao": "2248/2025", "relator": "RODRIGO NOVAES", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 48, "versao": 3, "codigo": 47, "descricao": "A prorrogação da ata de registro de preços com renovação dos\nquantitativos não se estende automaticamente às adesões por órgãos\nnão participantes, sendo necessário novo pleito de adesão.", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101270-0", "acordao": "2259/2025", "relator": "RODRIGO NOVAES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1007, "subtemaDescricao": "Ata de registro de preços"}, {"id": 47, "versao": 2, "codigo": 46, "descricao": "Na renovação dos quantitativos registrados na ata de registro de preços\nquando da prorrogação da sua vigência devem ser observados\nrequisitos específicos de planejamento, análise técnica, pesquisa de\npreços e concordância do fornecedor.&nbsp;", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101270-0", "acordao": "2259/2025", "relator": "RODRIGO NOVAES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1007, "subtemaDescricao": "Ata de registro de preços"}, {"id": 46, "versao": 3, "codigo": 45, "descricao": "O ato de prorrogação da vigência da ata de registro de preços deverá\nconsignar, expressamente, o quantitativo objeto da renovação, em\nestrita observância aos princípios da legalidade e da publicidade que\nregem os atos administrativos.&nbsp;", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101270-0", "acordao": "2259/2025", "relator": "RODRIGO NOVAES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1007, "subtemaDescricao": "Ata de registro de preços"}, {"id": 45, "versao": 2, "codigo": 44, "descricao": "Na hipótese de prorrogação da vigência da ata de registro de preços, é\npossível a renovação dos quantitativos nela registrados, observado o\nlimite do montante originalmente consignado.&nbsp;", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101270-0", "acordao": "2259/2025", "relator": "RODRIGO NOVAES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1007, "subtemaDescricao": "Ata de registro de preços"}, {"id": 44, "versao": 2, "codigo": 43, "descricao": "É possível a prorrogação da vigência da ata de registro de preços\npor igual período e a renovação do quantitativo inicialmente\nregistrado, desde que comprovado o preço vantajoso, nos termos\ndo art. 84 da Lei Federal nº 14.133/2021, e que exista previsão\nexpressa no edital da licitação e na respectiva ata, em atenção\naos princípios da publicidade, da transparência, da vinculação ao\nedital e da segurança jurídica.", "dataPublicacaostr": "Publicado em: 24/10/2025", "numeroProcesso": "25101270-0", "acordao": "2259/2025", "relator": "RODRIGO NOVAES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1007, "subtemaDescricao": "Ata de registro de preços"}, {"id": 43, "versao": 5, "codigo": 42, "descricao": "1. As receitas tributárias próprias municipais, incluindo as transferências constitucionais, nos exatos termos fixados no art. 29-A da Constituição Federal/1988, devem compor a base de cálculo do Poder Legislativo Municipal. 2. As transferências complementares (VAAF, VAAT e VAAR) ao FUNDEB, repassadas pela União aos Municípios, não devem compor a base de cálculo do Poder Legislativo Municipal. 3. O recebimento de valores decorrentes de precatórios relacionados ao extinto FUNDEF não deve compor a base de cálculo do repasse do duodécimo ao Poder Legislativo Municipal.", "dataPublicacaostr": "Publicada em: 24/10/2025", "numeroProcesso": "24101043-3", "acordao": "2250/2025", "relator": "MARCOS FLÁVIO TENÓRIO DE ALMEIDA", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 228, "temaDescricao": "Receita pública", "subtemaId": 641, "subtemaDescricao": "Contabilização"}, {"id": 42, "versao": 3, "codigo": 41, "descricao": "<div style=\"text-align: justify;\">a) Os valores destinados ao pagamento da contribuição patronal suplementar do Regime Próprio de Previdência Municipal constituem encargo social e podem ser computados para efeito de cumprimento do mínimo constitucional em educação. b) Admite-se a utilização de recursos do FUNDEB para o pagamento da contribuição patronal suplementar do Regime Próprio de Previdência Municipal.</div>", "dataPublicacaostr": "Publicado em: 19/09/2025", "numeroProcesso": "25101182-3", "acordao": "1948/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 10, "areaDescricao": "Responsabilidade", "temaId": 505, "temaDescricao": "Limites constitucionais", "subtemaId": 1691, "subtemaDescricao": "Aplicação de recursos em educação"}, {"id": 41, "versao": 2, "codigo": 40, "descricao": "1. Em casos de adoção de nova interpretação ou orientação sobre norma de conteúdo indeterminado de que resulte novo dever ou novo condicionamento de direito, o TCE/PE deverá prever regime de transição quando indispensável. 2. O regime de transição será fixado, quando necessário, tendo em conta as peculiaridades da norma. 3. Em regra, as despesas com hospedagem e alimentação devem ser custeadas por meio de diárias. 4. A insuficiência do valor das diárias não é justificativa aceitável para excepcionar sua utilização. 5. Não é possível ao TCE/PE fixar regime de transição que resulte em autorização para o descumprimento de norma infralegal.", "dataPublicacaostr": "Publicado em: 19/09/2025", "numeroProcesso": "24100937-6", "acordao": "1935/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 400, "temaDescricao": "Diárias", "subtemaId": 1729, "subtemaDescricao": "Requisitos e normativos"}, {"id": 40, "versao": 4, "codigo": 39, "descricao": "1. Têm direito ao rateio dos recursos decorrentes de ações judiciais relativas ao FUNDEF os profissionais do magistério da educação básica, incluindo aposentados, pensionistas e herdeiros, que mantiveram vínculo estatutário, celetista ou temporário. 2. Os servidores que ocupavam cargos diferentes do magistério e exerceram atividades de professor durante o período não têm direito ao rateio do precatório. 3. Apenas os profissionais do magistério incluídos na chamada folha dos 60% têm direito ao rateio. 4. Os profissionais readaptados só terão direito ao rateio se a função exercida após a readaptação estiver enquadrada na definição legal de efetivo exercício da profissão de magistério.", "dataPublicacaostr": "Publicada em: 05/09/2025", "numeroProcesso": "25100954-3", "acordao": "1844/2025", "relator": "RODRIGO NOVAES", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 39, "versao": 2, "codigo": 38, "descricao": "1. O subsídio dos agentes políticos do Poder Executivo municipal deve ser fixado pela Câmara Municipal para a legislatura subsequente, em observância ao Princípio da Anterioridade. 2. A iniciativa legislativa para a fixação do valor do referido subsídio é exclusiva da Câmara Municipal. 3. O Tribunal de Contas, de ofício ou por provocação, poderá rever a deliberação desta Consulta quando da decisão de mérito pelo Plenário do STF sobre a matéria (Tema 1192).", "dataPublicacaostr": "Publicado em: 02/09/2025", "numeroProcesso": "25101104-5", "acordao": "1792/2025", "relator": "RANILSON RAMOS", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 445, "temaDescricao": "Subsídio", "subtemaId": 1659, "subtemaDescricao": "Membro de Poder"}, {"id": 38, "versao": 2, "codigo": 37, "descricao": "As funções de Secretário Escolar e Chefe de Secretaria não ensejam aproveitamento do tempo para aposentadoria especial de professor, pois as funções fora de sala de aula que permitem este aproveitamento são direção de unidade escolar, coordenação pedagógica e assessoramento pedagógico.", "dataPublicacaostr": "Publicado em: 02/09/2025", "numeroProcesso": "25100444-2", "acordao": "1797/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 376, "temaDescricao": "Aposentadoria especial", "subtemaId": 1115, "subtemaDescricao": "Professor"}, {"id": 37, "versao": 2, "codigo": 36, "descricao": "1. A definição de critério objetivo para seleção dos beneficiários em programa municipal de distribuição gratuita de pescado deve ocorrer por meio de legislação local. 2. O CadÚnico pode ser usado como critério para definição dos beneficiários. 3. A legislação que adotar o CadÚnico como critério de seleção poderá estabelecer por meio de parâmetros objetivos eventual limitação de acesso. 4. É necessário que a legislação local garanta a transparência e a isonomia na distribuição.", "dataPublicacaostr": "Publicado em: 25/08/2025", "numeroProcesso": "25100425-9", "acordao": "1744/2025", "relator": "RODRIGO NOVAES", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 1677, "subtemaDescricao": "Políticas públicas"}, {"id": 36, "versao": 2, "codigo": 35, "descricao": "A mensalidade paga pelos alunos de autarquia municipal de ensino não tem natureza de tributo, mas sim de preço público. Não tendo a mensalidade natureza de tributo, não incide o art. 14 da Lei Complementar nº 101/2000 sobre renúncia de receitas quanto ao desconto efetuado nas mensalidades para repasse ao fundo garantidor do FIES.", "dataPublicacaostr": "Publicada em: 18/08/2025", "numeroProcesso": "25101242-6", "acordao": "1654/2025", "relator": "RANILSON RAMOS", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 230, "temaDescricao": "Renúncia de receita", "subtemaId": 653, "subtemaDescricao": "Requisito"}, {"id": 35, "versao": 3, "codigo": 34, "descricao": "1. Os valores oriundos das receitas tributárias e de transferências previstas no art. 29-A da Constituição Federal, repassados pelo Município ao FUNDEB, devem integrar a base de cálculo do limite do duodécimo municipal. 2. Os valores recebidos pelos entes municipais por meio do FUNDEB não integram a base de cálculo do limite do duodécimo a ser repassado ao Poder Legislativo Municipal. 3. Não é juridicamente admissível que os atuais presidentes de Câmara Municipal solicitem ao Poder Executivo os valores eventualmente não repassados.", "dataPublicacaostr": "Publicado em: 18/08/2025", "numeroProcesso": "25100460-0", "acordao": "1657/2025", "relator": "RANILSON RAMOS", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 34, "versao": 3, "codigo": 33, "descricao": "Com arrimo na ordem constitucional vigente e na jurisprudência dos Tribunais Superiores (STF e STJ) e do TCE-PE, em havendo previsão na legislação local, caso o lapso temporal legalmente previsto para a aquisição do adicional por tempo de serviço tenha sido integralmente finalizado antes da vigência da EC nº 19/1998, a base de cálculo do adicional por tempo de serviço obedecerá ao disposto na legislação em vigor no momento da aquisição do referido adicional, em respeito ao direito adquirido. Entretanto, caso o lapso temporal tenha sido finalizado após o início da vigência da EC nº 19/1998, a base de cálculo é o vencimento-base do servidor.", "dataPublicacaostr": "Publicado em: 08/08/2025", "numeroProcesso": "24100338-6", "acordao": "1589/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 440, "temaDescricao": "Remuneração", "subtemaId": 1369, "subtemaDescricao": "Vantagem pecuniária"}, {"id": 33, "versao": 3, "codigo": 32, "descricao": "O controlador interno não poderá ser designado como fiscal ou gestor de contrato celebrado pelo ente público ao qual se encontra vinculado.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 261, "temaDescricao": "Controle interno", "subtemaId": 1763, "subtemaDescricao": "Requisitos"}, {"id": 32, "versao": 2, "codigo": 31, "descricao": "A abertura de créditos adicionais ao orçamento, desde que devidamente autorizada pelo Legislativo, configura prerrogativa exclusiva do Poder Executivo.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 221, "temaDescricao": "Orçamento estadual e municipal", "subtemaId": 628, "subtemaDescricao": "Crédito adicional"}, {"id": 31, "versao": 3, "codigo": 30, "descricao": "Sendo prevista na legislação municipal, a verba de representação atribuída ao Presidente da Câmara de Vereadores deverá ser computada para fins de aferição do cumprimento do limite estabelecido no § 1º do art. 29-A da Constituição Federal.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 420, "temaDescricao": "Parlamentar", "subtemaId": 1790, "subtemaDescricao": "Verba de representação"}, {"id": 30, "versao": 3, "codigo": 29, "descricao": "Nos termos dos arts. 57, § 7º, e 29 da Constituição Federal, resta vedado à Câmara Municipal o pagamento de parcela indenizatória a Vereadores pelo comparecimento a sessões legislativas extraordinárias.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 420, "temaDescricao": "Parlamentar", "subtemaId": 1253, "subtemaDescricao": "Verba indenizatória"}, {"id": 29, "versao": 3, "codigo": 28, "descricao": "À luz da orientação firmada pelo Supremo Tribunal Federal (RE nº 650.898/RS) e dos precedentes emanados desta Corte de Contas, é admissível a concessão do terço constitucional de férias a Prefeitos, Vice-Prefeitos, Secretários Municipais e Vereadores, desde que haja previsão expressa em lei específica do ente federativo correspondente.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 409, "temaDescricao": "Férias", "subtemaId": 1788, "subtemaDescricao": "Terço de férias"}, {"id": 28, "versao": 5, "codigo": 27, "descricao": "Nos casos de fornecimento parcelado de bens, de prestação de serviços não contínuos ou de contratos por escopo que ultrapassem o limite de um exercício financeiro, admite-se que a integralidade das despesas seja empenhada no exercício em que celebrado o contrato, promovendo-se a inscrição, em restos a pagar não processados, das obrigações financeiras a serem adimplidas no exercício subsequente, desde que comprovada a respectiva disponibilidade financeira.", "dataPublicacaostr": "Publicado em: 29/07/2025", "numeroProcesso": "25100297-4", "acordao": "1501/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 2, "areaDescricao": "Contrato Administrativo", "temaId": 68, "temaDescricao": "Liquidação da despesa", "subtemaId": 1789, "subtemaDescricao": "Requisitos"}, {"id": 27, "versao": 3, "codigo": 26, "descricao": "Não encontram respaldo no art. 70 da Lei nº 9.394/1996 (Lei de Diretrizes e Bases da Educação Nacional), não podendo, portanto, ser computadas para fins de apuração do percentual de investimentos na manutenção e desenvolvimento do ensino, as despesas com a remuneração de estagiários, por não serem estes enquadrados como pessoal docente ou profissionais da educação.", "dataPublicacaostr": "Publicada em: 11/07/2025", "numeroProcesso": "25100524-0", "acordao": "1354/2025", "relator": "MARCOS LORETO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 26, "versao": 3, "codigo": 25, "descricao": "Não é permitido o uso dos recursos da parcela mínima de 70% do FUNDEB para o pagamento de empresas fornecedoras de mão de obra terceirizada ou de prestadores de serviços, inclusive na hipótese de que essa mão de obra seja essencial para o funcionamento das redes de ensino e o desenvolvimento das atividades pedagógicas.", "dataPublicacaostr": "Publicada em: 11/07/2025", "numeroProcesso": "25100524-0", "acordao": "1354/2025", "relator": "MARCOS LORETO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 25, "versao": 4, "codigo": 24, "descricao": "Os valores recebidos pelos entes municipais por meio do FUNDEB não integram a base de cálculo do limite do duodécimo a ser repassado às Casas Legislativas Municipais, porque não estão compreendidos nas receitas e/ou transferências previstas no art. 29-A da Constituição Federal.", "dataPublicacaostr": "Publicado em: 11/07/2025", "numeroProcesso": "25100503-3", "acordao": "1349 / 2025", "relator": "MARCOS LORETO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 24, "versao": 9, "codigo": 23, "descricao": "Os valores oriundos das receitas tributárias e de transferências previstas no art. 29-A da Constituição, que são repassados pelo município ao FUNDEB, devem integrar a base de cálculo do limite do duodécimo municipal.", "dataPublicacaostr": "Publicado em: 07/07/2025", "numeroProcesso": "25100510-0", "acordao": "1277/2025", "relator": "MARCOS LORETO", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 1699, "subtemaDescricao": "Administração fazendária"}, {"id": 23, "versao": 6, "codigo": 22, "descricao": "Os valores recebidos pelos entes municipais por meio do FUNDEB não integram a base de cálculo do limite do duodécimo a ser repassado às Casas Legislativas Municipais, porque não estão compreendidos nas receitas e/ou transferências previstas no art. 29-A da Constituição Federal.", "dataPublicacaostr": "Publicado em: 07/07/2025", "numeroProcesso": "25100510-0", "acordao": "1277/2025", "relator": "MARCOS LORETO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 22, "versao": 5, "codigo": 21, "descricao": "É possível a concessão de auxílio-saúde aos servidores efetivos, comissionados e vereadores das Câmaras Municipais, desde que seja criado mediante lei específica; que tenha caráter indenizatório; que sejam observados os limites e restrições orçamentárias constitucionais e legais; e que sejam fixados os valores com base nos princípios da razoabilidade e proporcionalidade, podendo-se utilizar como parâmetro a Resolução nº 294/2019 do CNJ.", "dataPublicacaostr": "Publicado em: 30/06/2025", "numeroProcesso": "23100293-2", "acordao": "1236/2025", "relator": "RUY RICARDO HARTEN", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 387, "temaDescricao": "Auxílio-saúde", "subtemaId": 1796, "subtemaDescricao": "Requisitos"}, {"id": 21, "versao": 6, "codigo": 20, "descricao": "A contratação de serviços advocatícios mediante inexigibilidade de licitação é possível, desde que demonstrada a notória especialização do profissional da advocacia ou da empresa, sendo vedada a subcontratação, devendo haver a adequada justificativa de preços, conforme art. 23, caput e §4º, art. 72, inciso VII, art. 73 e art. 74, inciso III e §§3º e 4º, da Lei Federal nº 14.133/2021.", "dataPublicacaostr": "Publicada em: 19/05/2025", "numeroProcesso": "24101271-5", "acordao": "899/2025", "relator": "MARCOS LORETO", "areaId": 8, "areaDescricao": "Licitação", "temaId": 325, "temaDescricao": "Inexigibilidade de licitação", "subtemaId": 879, "subtemaDescricao": "Serviços advocatícios"}, {"id": 20, "versao": 6, "codigo": 19, "descricao": "Quando entidades municipais não dispuserem de órgão permanente de advocacia pública constituído, a contratação de profissionais alheios aos seus quadros funcionais para execução de serviços advocatícios rotineiros deve ser precedida, em regra, de procedimento licitatório, segundo critérios objetivos previamente definidos.", "dataPublicacaostr": "Publicada em: 19/05/2025", "numeroProcesso": "24101271-5", "acordao": "899/2025", "relator": "MARCOS LORETO", "areaId": 8, "areaDescricao": "Licitação", "temaId": 327, "temaDescricao": "Licitação de técnica e preço", "subtemaId": 889, "subtemaDescricao": "Serviços advocatícios"}, {"id": 18, "versao": 6, "codigo": 18, "descricao": "É inadmissível a cobrança de preço público pela adesão a ata de registro de preços gerenciada por consórcio público, pois o art. 31 do Decreto nº 11.462/2023 não condiciona a adesão de ente participante ou não participante à realização de qualquer pagamento.", "dataPublicacaostr": "Publicada em: 12/05/2025", "numeroProcesso": "24100943-1", "acordao": "868/2025", "relator": "CARLOS NEVES", "areaId": 8, "areaDescricao": "Licitação", "temaId": 355, "temaDescricao": "Registro de preços", "subtemaId": 1004, "subtemaDescricao": "Adesão à ata de registro de preços"}, {"id": 17, "versao": 4, "codigo": 17, "descricao": "Os juros de mora possuem natureza indenizatória autônoma e não configuram recebimento em excesso quando incorporados ao abono dos professores.", "dataPublicacaostr": "Publicada em: 09/05/2025", "numeroProcesso": "23100291-9", "acordao": "844/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 16, "versao": 4, "codigo": 16, "descricao": "É permitido que o abono aos profissionais do magistério, inclusive aposentados e pensionistas, seja acrescido dos juros de mora, independentemente da data em que os recursos tenham ingressado aos cofres públicos, desde que regulamentado por legislação local específica.", "dataPublicacaostr": "Publicada em: 09/05/2025", "numeroProcesso": "23100291-9", "acordao": "844/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 207, "temaDescricao": "Fundeb", "subtemaId": 608, "subtemaDescricao": "Aplicação"}, {"id": 15, "versao": 4, "codigo": 15, "descricao": "A Constituição Federal estabelece autonomia administrativa, financeira e legislativa dos Municípios conforme previsto no seu art. 18. Essa autonomia inclui a competência para legislar sobre a organização de seu quadro de pessoal, garantindo que cada Município possa estruturar sua administração, inclusive horário para jornada de trabalho, conforme suas necessidades e características locais – art. 30, inciso I.", "dataPublicacaostr": "Publicada em: 23/04/2025", "numeroProcesso": "25100230-5", "acordao": "704/2025", "relator": "MARCOS LORETO", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 1804, "subtemaDescricao": "Autonomia administrativa"}, {"id": 14, "versao": 4, "codigo": 14, "descricao": "É possível a acumulação do cargo de agente comunitário de saúde e agente de combate a endemias com outro cargo na Corporação Militar restrito a profissional de saúde, com profissão regulamentada, e desde que haja compatibilidade de horários, limitado a 2 (dois) vínculos e com prevalência da atividade militar.", "dataPublicacaostr": "Publicada em: 23/04/2025", "numeroProcesso": "25100230-5", "acordao": "704/2025", "relator": "MARCOS LORETO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 366, "temaDescricao": "Acumulação de cargo público", "subtemaId": 1064, "subtemaDescricao": "Servidor público militar"}, {"id": 13, "versao": 4, "codigo": 13, "descricao": "Os policiais e bombeiros militares podem acumular cargos, empregos e funções, conforme previsto no § 3º do art. 42 da Constituição Federal, devendo ser observadas as regras do inciso XVI do art. 37.", "dataPublicacaostr": "Publicada em: 23/04/2025", "numeroProcesso": "25100230-5", "acordao": "704/2025", "relator": "MARCOS LORETO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 366, "temaDescricao": "Acumulação de cargo público", "subtemaId": 1064, "subtemaDescricao": "Servidor público militar"}, {"id": 12, "versao": 4, "codigo": 12, "descricao": "Para o desempenho da atividade de agente comunitário de saúde e agente de combate a endemias, não há requisito de conhecimento específico na área de atuação do profissional nem desenvolvimento de pesquisas em determinada área do conhecimento, não possuindo assim, natureza de cargo técnico ou científico para fins de acumulação de cargos, empregos ou funções na Administração Pública.", "dataPublicacaostr": "Publicada em: 23/04/2025", "numeroProcesso": "25100230-5", "acordao": "704/2025", "relator": "MARCOS LORETO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 372, "temaDescricao": "Admissão de pessoal", "subtemaId": 1081, "subtemaDescricao": "Contratação temporária"}, {"id": 11, "versao": 4, "codigo": 11, "descricao": "De acordo com o disposto no art. 2-A da Lei nº 11.350/2006, incluído pela Lei nº 14.536/2023, os Agentes Comunitários de Saúde e os Agentes de Combate às Endemias são considerados profissionais de saúde, com profissões regulamentadas, para fins do disposto na alínea c do inciso XVI do caput do art. 37 da Constituição Federal.", "dataPublicacaostr": "Publicada em: 23/04/2025", "numeroProcesso": "25100230-5", "acordao": "704/2025", "relator": "MARCOS LORETO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 372, "temaDescricao": "Admissão de pessoal", "subtemaId": 1081, "subtemaDescricao": "Contratação temporária"}, {"id": 10, "versao": 5, "codigo": 10, "descricao": "É vedado ao servidor público perceber gratificação de função cujo fundamento coincida com o de outra já incorporada à sua remuneração, salvo se houver expressa previsão legal que autorize o recebimento da diferença entre a gratificação atualmente exercida e aquela anteriormente incorporada. Em qualquer hipótese, não é admissível nova incorporação de gratificação com o mesmo fundamento.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "25100239-1", "acordao": "630/2025", "relator": "RANILSON RAMOS", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 440, "temaDescricao": "Remuneração", "subtemaId": 1688, "subtemaDescricao": "Concessão de gratificação"}, {"id": 9, "versao": 4, "codigo": 9, "descricao": "É possível abrir créditos adicionais por excesso de arrecadação, desde que amparados por lei autorizativa e decreto executivo.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 221, "temaDescricao": "Orçamento estadual e municipal", "subtemaId": 628, "subtemaDescricao": "Crédito adicional"}, {"id": 8, "versao": 4, "codigo": 8, "descricao": "A guarda e conservação de documentos públicos é responsabilidade contínua do ente público, com medidas a serem tomadas pelo gestor atual na ausência de documentação.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 7, "areaDescricao": "Gestão Administrativa", "temaId": 241, "temaDescricao": "Administração estadual e municipal", "subtemaId": 682, "subtemaDescricao": "Acesso à informação"}, {"id": 7, "versao": 4, "codigo": 7, "descricao": "Contratos celebrados sob a égide da Lei nº 14.133/2021 podem ter vigência além do exercício financeiro, quando previsto e autorizado durante a contratação inicial.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 2, "areaDescricao": "Contrato Administrativo", "temaId": 95, "temaDescricao": "Vigência", "subtemaId": 237, "subtemaDescricao": "Prazo"}, {"id": 6, "versao": 4, "codigo": 6, "descricao": "As despesas com inativos e pensionistas deverão ser incluídas no limite de gastos das Câmaras Municipais a partir da primeira legislatura municipal após a publicação da EC 109/2021.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 440, "temaDescricao": "Remuneração", "subtemaId": 1342, "subtemaDescricao": "Benefício previdenciário"}, {"id": 5, "versao": 4, "codigo": 5, "descricao": "O aporte financeiro destinado a cobrir déficit atual do RPPS deve ser integralmente contabilizado na despesa total de pessoal, o excedente será tratado como constituição de reserva.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 9, "areaDescricao": "Pessoal", "temaId": 440, "temaDescricao": "Remuneração", "subtemaId": 1342, "subtemaDescricao": "Benefício previdenciário"}, {"id": 4, "versao": 4, "codigo": 4, "descricao": "As parcelas indenizatórias, com exceção da verba de representação do Presidente da Câmara Municipal, não integram o cálculo do valor bruto das despesas com pessoal.", "dataPublicacaostr": "Publicado em: 11/04/2025", "numeroProcesso": "24100309-0", "acordao": "639/2025", "relator": "EDUARDO LYRA PORTO", "areaId": 6, "areaDescricao": "Finanças Públicas", "temaId": 231, "temaDescricao": "Responsabilidade fiscal", "subtemaId": 654, "subtemaDescricao": "Despesa com pessoal"}, {"id": 3, "versao": 4, "codigo": 3, "descricao": "A conduta desidiosa do gestor que deixou de admitir e capacitar os servidores efetivos para cumprir com as atribuições previstas para o agente de contratação é passível de responsabilização.", "dataPublicacaostr": "Publicado em: 07/04/2025", "numeroProcesso": "24100118-3", "acordao": "584/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 8, "areaDescricao": "Licitação", "temaId": 521, "temaDescricao": "Agente de contratação", "subtemaId": 1803, "subtemaDescricao": "Atribuições e requisitos"}, {"id": 2, "versao": 8, "codigo": 2, "descricao": "1. Os agentes de contratação ou pregoeiros responsáveis pela condução do certame devem ser servidores efetivos ou empregados públicos dos quadros permanentes da Administração Pública, salvo situações excepcionais. 2. Na hipótese de impossibilidade transitória de designação de servidor efetivo ou empregado público para a função, é excepcionalmente permitida a contratação por tempo determinado de servidor competente, sendo imprescindível a demonstração circunstanciada dos requisitos legais de admissão.", "dataPublicacaostr": "Publicado em: 07/04/2025", "numeroProcesso": "24100118-3", "acordao": "584/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 10, "areaDescricao": "Responsabilidade", "temaId": 478, "temaDescricao": "Licitação", "subtemaId": 1572, "subtemaDescricao": "Comissão de licitação"}, {"id": 1, "versao": 18, "codigo": 1, "descricao": "O art. 6º, inciso LX, e o art. 8º, caput, ambos da Lei nº 14.133/2021 possuem a natureza de norma geral e devem ser observados pelos entes subnacionais.", "dataPublicacaostr": "Publicado em: 07/04/2025", "numeroProcesso": "24100118-3", "acordao": "584/2025", "relator": "DIRCEU RODOLFO DE MELO JÚNIOR", "areaId": 8, "areaDescricao": "Licitação", "temaId": 521, "temaDescricao": "Agente de contratação", "subtemaId": 1803, "subtemaDescricao": "Atribuições e requisitos"}];
+
+// ── Sistema de Usuários ──────────────────────────────────────────
+const USUARIOS = [
+  { id: 'rogerio',  nome: 'Rogério',  cor: '#3b82f6', letra: 'R' },
+  { id: 'bruna',    nome: 'Bruna',    cor: '#ec4899', letra: 'B' },
+  { id: 'henrique', nome: 'Henrique', cor: '#f59e0b', letra: 'H' },
+];
+
+let usuarioAtual = null;
+
+function storageKey(base) {
+  return `pj_${usuarioAtual}_${base}`;
+}
+
+function iniciarSistemaUsuarios() {
+  // Monta os botões
+  const grid = document.getElementById('usuariosGrid');
+  USUARIOS.forEach(u => {
+    const btn = document.createElement('button');
+    btn.className = 'usuario-btn';
+    btn.innerHTML = `
+      <div class="avatar" style="background:${u.cor}20;color:${u.cor}">${u.letra}</div>
+      <div class="nome">${u.nome}</div>`;
+    btn.onclick = () => selecionarUsuario(u.id);
+    grid.appendChild(btn);
+  });
+
+  // Verifica se já tem usuário salvo
+  const salvo = localStorage.getItem('pj_usuario_ativo');
+  if (salvo && USUARIOS.find(u => u.id === salvo)) {
+    selecionarUsuario(salvo, true);
+  }
+}
+
+async function selecionarUsuario(id, silencioso) {
+  usuarioAtual = id;
+  localStorage.setItem('pj_usuario_ativo', id);
+
+  const u = USUARIOS.find(u => u.id === id);
+  document.getElementById('telaUsuario').style.display = 'none';
+  document.getElementById('chipUsuario').textContent = `👤 ${u.nome}`;
+
+  await loadStorage();
+
+  if (!silencioso || allData.length === 0) {
+    allData = DADOS_EMBUTIDOS.map(d => ({ ...d, _desc: stripHtml(d.descricao) }));
+    renderizarTudo();
+  } else {
+    renderizarTudo();
+  }
+}
+
+function trocarUsuario() {
+  document.getElementById('telaUsuario').style.display = 'flex';
+}
+
+// Ponto de entrada — substituiu o DOMContentLoaded antigo
+document.addEventListener('DOMContentLoaded', () => {
+  iniciarSistemaUsuarios();
+});
+
+function exportCSV(tab) {
+  let headers, rows;
+  if (tab === 'all') {
+    headers = ['Nº Processo','Prejulgado','Descrição','Área','Tema','Subtema'];
+    rows = allData.map(d => [d.numeroProcesso,d.codigo||d.id,d._desc,d.areaDescricao,d.temaDescricao,d.subtemaDescricao]);
+  } else {
+    headers = ['Nº Processo','Prejulgado','Vínculos','Descrição','Área','Tema','Subtema','Comentário'];
+    rows = [];
+    groupByProcesso(allData).filter(g=>g.items.length>1).forEach(g=>{
+      g.items.forEach(d => {
+        const key = String(d.codigo||d.id);
+        const gid = findGroupForKey(key);
+        const peers = gid ? (userLinks[gid]||[]).filter(k=>k!==key).map(k=>'Prej.'+k).join(', ') : '';
+        rows.push([d.numeroProcesso,d.codigo||d.id,peers,d._desc,d.areaDescricao,d.temaDescricao,d.subtemaDescricao,userNotes[key]||'']);
+      });
+    });
+  }
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('\uFEFF' + csv);
+  a.download = `prejulgados_${tab}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── Exportar Excel com cores ─────────────────────────────────────
+// Converte hex "#rrggbb" para formato ARGB do SheetJS "FFrrggbb"
+function hexToArgb(hex) {
+  return 'FF' + hex.replace('#','').toUpperCase();
+}
+
+// Paleta de cores de fundo para grupos (ARGB) — mesma lógica do GROUP_COLORS
+const XLSX_BG = [
+  'FFDBEAFE','FFFCE7F3','FFD1FAE5','FFFEF3C7','FFEDE9FE',
+  'FFFEE2E2','FFE0F2FE','FFFDF4FF','FFF0FDF4','FFFFF7ED'
+];
+const XLSX_FG = [
+  'FF1E3A8A','FF831843','FF065F46','FF78350F','FF4C1D95',
+  'FF7F1D1D','FF0C4A6E','FF701A75','FF14532D','FF7C2D12'
+];
+
+function cellStyle(bgArgb, fgArgb, bold) {
+  return {
+    fill: { patternType: 'solid', fgColor: { rgb: bgArgb } },
+    font: { bold: !!bold, color: { rgb: fgArgb || 'FF1A1916' }, name: 'Calibri', sz: 10 },
+    alignment: { wrapText: true, vertical: 'top' },
+    border: {
+      bottom: { style: 'thin', color: { rgb: 'FFE0DDD6' } },
+      right:  { style: 'thin', color: { rgb: 'FFE0DDD6' } }
+    }
+  };
+}
+
+function headerStyle() {
+  return {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FF1A3A2A' } },
+    font: { bold: true, color: { rgb: 'FFFFFFFF' }, name: 'Calibri', sz: 10 },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: { bottom: { style: 'medium', color: { rgb: 'FF000000' } } }
+  };
+}
+
+function groupHeaderStyle() {
+  return {
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFE8F0EB' } },
+    font: { bold: true, color: { rgb: 'FF1A3A2A' }, name: 'Calibri', sz: 10 },
+    alignment: { vertical: 'center' }
+  };
+}
+
+function makeCell(v, style) {
+  return { v: v == null ? '' : String(v), t: 's', s: style };
+}
+
+function exportXLSX(tab) {
+  if (typeof XLSX === 'undefined') {
+    alert('Biblioteca Excel ainda carregando. Tente em alguns segundos.');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  if (tab === 'all') {
+    // ── Aba "Todos" ───────────────────────────────────────────────
+    const headers = ['Nº Processo','Prejulgado','Descrição','Área','Tema','Subtema'];
+    const aoa = [ headers.map(h => makeCell(h, headerStyle())) ];
+
+    allData.forEach(d => {
+      const key  = String(d.codigo || d.id);
+      const gid  = findGroupForKey(key);
+      const idx  = gid ? (parseInt(gid.replace('g','')) - 1) % XLSX_BG.length : -1;
+      const bg   = idx >= 0 ? XLSX_BG[idx] : 'FFFFFFFF';
+      const fg   = idx >= 0 ? XLSX_FG[idx] : 'FF1A1916';
+      const st   = cellStyle(bg, fg, false);
+      aoa.push([
+        makeCell(d.numeroProcesso, st),
+        makeCell(d.codigo || d.id, { ...st, font: { ...st.font, bold: true } }),
+        makeCell(d._desc, st),
+        makeCell(d.areaDescricao, st),
+        makeCell(d.temaDescricao, st),
+        makeCell(d.subtemaDescricao, st),
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [14,10,60,20,22,22].map(w => ({ wch: w }));
+    ws['!rows'] = [{ hpt: 20 }]; // header row height
+    XLSX.utils.book_append_sheet(wb, ws, 'Todos os Prejulgados');
+
+  } else {
+    // ── Aba "Mesmo Processo" ──────────────────────────────────────
+    const headers = ['Nº Processo','Prejulgado','Vínculos','Descrição','Área','Tema','Subtema','Comentário do analista'];
+    const aoa = [ headers.map(h => makeCell(h, headerStyle())) ];
+
+    const groups = groupByProcesso(allData).filter(g => g.items.length > 1);
+    groups.forEach(g => {
+      // Linha de cabeçalho do grupo (processo)
+      const ghStyle = groupHeaderStyle();
+      const ghRow = [ makeCell(`Processo ${g.processo}  —  ${g.items.length} prejulgados`, ghStyle) ];
+      for (let i = 1; i < headers.length; i++) ghRow.push(makeCell('', ghStyle));
+      aoa.push(ghRow);
+
+      g.items.forEach(d => {
+        const key  = String(d.codigo || d.id);
+        const gid  = findGroupForKey(key);
+        const idx  = gid ? (parseInt(gid.replace('g','')) - 1) % XLSX_BG.length : -1;
+        const bg   = idx >= 0 ? XLSX_BG[idx] : 'FFFFFFFF';
+        const fg   = idx >= 0 ? XLSX_FG[idx] : 'FF1A1916';
+        const st   = cellStyle(bg, fg, false);
+        const peers = gid
+          ? (userLinks[gid] || []).filter(k => k !== key).map(k => 'Prej. ' + k).join(', ')
+          : '';
+        aoa.push([
+          makeCell(d.numeroProcesso, st),
+          makeCell(d.codigo || d.id, { ...st, font: { ...st.font, bold: true } }),
+          makeCell(peers, { ...st, font: { ...st.font, bold: peers ? true : false } }),
+          makeCell(d._desc, st),
+          makeCell(d.areaDescricao, st),
+          makeCell(d.temaDescricao, st),
+          makeCell(d.subtemaDescricao, st),
+          makeCell(userNotes[key] || '', { ...cellStyle('FFFFFFFF','FF1A1916'), font: { name:'Calibri', sz:10, italic: true } }),
+        ]);
+      });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [14,10,18,60,20,22,22,30].map(w => ({ wch: w }));
+
+    // Mescla células do cabeçalho de grupo nas 8 colunas
+    ws['!merges'] = ws['!merges'] || [];
+    aoa.forEach((row, ri) => {
+      if (ri > 0 && row[0] && row[0].s === groupHeaderStyle()) {
+        // Detecta linhas de grupo pela cor de fundo
+      }
+    });
+    // Simpler merge detection: group header rows are every time a processo row appears
+    let rowIdx = 1;
+    groups.forEach(g => {
+      ws['!merges'].push({ s:{r:rowIdx,c:0}, e:{r:rowIdx,c:headers.length-1} });
+      rowIdx += 1 + g.items.length;
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Mesmo Processo');
+  }
+
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `prejulgados_${tab}_${date}.xlsx`);
+}
+
+function exportHTML() {
+  // Flush any unsaved textarea edits into userNotes
+  document.querySelectorAll('.comment-area').forEach(ta => {
+    const row = ta.closest('tr[data-key]');
+    if (row) userNotes[row.dataset.key] = ta.value;
+  });
+
+  // Serialize the entire current DOM as HTML
+  let src = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+  // The snapshot vars are single-line — match to end of line
+  src = src.replace(
+    /var __SNAPSHOT_LINKS__ = .+;/,
+    'var __SNAPSHOT_LINKS__ = ' + JSON.stringify(userLinks) + ';'
+  );
+  src = src.replace(
+    /var __SNAPSHOT_NOTES__ = .+;/,
+    'var __SNAPSHOT_NOTES__ = ' + JSON.stringify(userNotes) + ';'
+  );
+
+  const date = new Date().toISOString().slice(0,10);
+  const blob = new Blob([src], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `prejulgados_analise_${date}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
