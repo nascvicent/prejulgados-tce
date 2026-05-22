@@ -85,6 +85,6 @@ def salvar_vinculos(usuario: str, body: VinculoPayload):
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return FileResponse("static/index.html")
